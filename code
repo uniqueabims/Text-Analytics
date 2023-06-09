@@ -1,0 +1,1194 @@
+# -*- coding: utf-8 -*-
+
+!pip install transformers
+
+"""Importing all required libraries for Model 1"""
+
+# Commented out IPython magic to ensure Python compatibility.
+import os
+import pickle
+import io
+import numpy as np
+import pandas as pd
+from sklearn.model_selection import train_test_split
+import re
+import nltk
+from nltk.corpus import stopwords
+from nltk.tokenize import word_tokenize
+from nltk.stem import WordNetLemmatizer
+from sklearn.svm import LinearSVC
+from sklearn.feature_extraction.text import TfidfVectorizer
+# %matplotlib inline
+from sklearn.metrics import accuracy_score, recall_score, precision_score, f1_score, confusion_matrix,classification_report
+import matplotlib.pyplot as plt
+import seaborn as sns
+from sklearn.metrics import f1_score
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.svm import SVC
+from sklearn.model_selection import GridSearchCV
+from sklearn.pipeline import Pipeline
+
+
+
+# set same seeds for all libraries
+
+#numpy seed
+np.random.seed(student_id)
+
+"""#Common Codes"""
+
+# Mount Google Drive
+from google.colab import drive
+drive.mount('/content/gdrive', force_remount=True)
+
+GOOGLE_DRIVE_PATH_AFTER_MYDRIVE = os.path.join('./CE807/Assignment2/', str(student_id))
+GOOGLE_DRIVE_PATH = os.path.join('gdrive', 'MyDrive', GOOGLE_DRIVE_PATH_AFTER_MYDRIVE)
+train_file = os.path.join(GOOGLE_DRIVE_PATH, 'train.csv')
+
+"""#Creating Training Subsets and Saving Them
+This code defines a function called create_train_subsets that takes a train_file as input and returns four subsets of the training data with different percentages of the original dataset (100%, 75%, 50%, and 25%).
+It creates four subsets of the training data using the train_test_split function from scikit-learn, which splits the data into different sizes based on the train_size parameter. It uses a random_state value of 2200970 and stratifies the data based on the 'label' column to ensure a balanced distribution of the target column in each subset.
+
+After defining the function, the code cell reads the original train data file, creates the subsets, and saves them to CSV files. It then prints the file paths for the training subsets and the validation and test files. Finally, it lists the files in the specified Google Drive directory.
+"""
+
+def create_train_subsets(train_file):
+    """
+    Args:
+        train_file (str): Path to the training data file.
+
+    Functionality:
+        Reads the training data file, creates subsets of different sizes (100%, 75%, 50%, and 25%), and returns the
+        corresponding DataFrames.
+    
+    Returns:
+        tuple: A tuple containing four pandas DataFrames representing train data subsets of 100%, 75%, 50%, and 25%
+        of the original size.
+    """
+    data = pd.read_csv(train_file)
+    target_column = 'label'  
+
+    train_data_100 = data
+    train_data_75, _ = train_test_split(data, train_size=0.75, random_state=23, stratify=data['label'])
+    train_data_50, _ = train_test_split(train_data_75, train_size=(2/3), random_state=23, stratify=train_data_75['label'])
+    train_data_25, _ = train_test_split(train_data_50, train_size=0.5, random_state=23, stratify=train_data_50['label'])
+
+    return train_data_100, train_data_75, train_data_50, train_data_25
+
+train_25_data = os.path.join(GOOGLE_DRIVE_PATH, 'train_25.csv')
+train_50_data = os.path.join(GOOGLE_DRIVE_PATH, 'train_50.csv')
+train_75_data = os.path.join(GOOGLE_DRIVE_PATH, 'train_75.csv')
+train_100_data = os.path.join(GOOGLE_DRIVE_PATH, 'train.csv')
+
+train_data_100, train_data_75, train_data_50, train_data_25 = create_train_subsets(train_file)
+
+train_25_data = os.path.join(GOOGLE_DRIVE_PATH, 'train_25.csv')
+train_50_data = os.path.join(GOOGLE_DRIVE_PATH, 'train_50.csv')
+train_75_data = os.path.join(GOOGLE_DRIVE_PATH, 'train_75.csv')
+train_100_data = os.path.join(GOOGLE_DRIVE_PATH, 'train.csv')
+
+train_data_25.to_csv(train_25_data, index=False)
+train_data_50.to_csv(train_50_data, index=False)
+train_data_75.to_csv(train_75_data, index=False)
+train_data_100.to_csv(train_100_data, index=False)
+
+print('Train 25% file: ', train_25_data)
+print('Train 50% file: ', train_50_data)
+print('Train 75% file: ', train_75_data)
+print('Train 100% file: ', train_file)
+
+val_file = os.path.join(GOOGLE_DRIVE_PATH, 'valid.csv')
+print('Val file: ', val_file)
+
+test_file = os.path.join(GOOGLE_DRIVE_PATH, 'test.csv')
+print('Test file: ', test_file)
+
+print('List files: ', os.listdir(GOOGLE_DRIVE_PATH))
+
+"""#Define Model 1 Directories and Output Files"""
+
+#Model 1
+MODEL_1_DIRECTORY = os.path.join(GOOGLE_DRIVE_PATH, 'models', '1') # Model 1 directory
+print('Model 1 directory: ', MODEL_1_DIRECTORY)
+
+MODEL_1_25_DIRECTORY = os.path.join(MODEL_1_DIRECTORY,'25') # Model 1 trained using 25% of train data directory
+print('Model 1 directory with 25% data: ', MODEL_1_25_DIRECTORY)
+
+MODEL_1_50_DIRECTORY = os.path.join(MODEL_1_DIRECTORY,'50') # Model 1 trained using 50% of train data directory
+print('Model 1 directory with 50% data: ', MODEL_1_50_DIRECTORY)
+
+MODEL_1_75_DIRECTORY = os.path.join(MODEL_1_DIRECTORY,'75') # Model 1 trained using 75% of train data directory
+print('Model 1 directory with 75% data: ', MODEL_1_75_DIRECTORY)
+
+MODEL_1_100_DIRECTORY = os.path.join(MODEL_1_DIRECTORY,'100') # Model 1 trained using 100% of train data directory
+print('Model 1 directory with 100% data: ', MODEL_1_100_DIRECTORY)
+
+#Output Test
+model_1_25_output_test_file = os.path.join(MODEL_1_25_DIRECTORY, 'output_test.csv') # Output file using Model 1 trained using 25% of train data 
+print('Output file name using model 1 using 25% of train data: ',model_1_25_output_test_file)
+
+model_1_50_output_test_file = os.path.join(MODEL_1_50_DIRECTORY, 'output_test.csv') # Output file using Model 1 trained using 25% of train data 
+print('Output file name using model 1 using 50% of train data: ',model_1_50_output_test_file)
+
+model_1_75_output_test_file = os.path.join(MODEL_1_75_DIRECTORY, 'output_test.csv') # Output file using Model 1 trained using 25% of train data 
+print('Output file name using model 1 using 75% of train data: ',model_1_75_output_test_file)
+
+model_1_100_output_test_file = os.path.join(MODEL_1_100_DIRECTORY, 'output_test.csv') # Output file using Model 1 trained using 25% of train data 
+print('Output file name using model 1 using 100% of train data: ',model_1_100_output_test_file)
+
+"""#Define Model 2 Directories and Output Files"""
+
+#Model2
+MODEL_2_DIRECTORY = os.path.join(GOOGLE_DRIVE_PATH, 'models', '2') # Model 2 directory
+print('Model 2 directory: ', MODEL_2_DIRECTORY)
+
+MODEL_2_25_DIRECTORY = os.path.join(MODEL_2_DIRECTORY,'25') # Model 2 trained using 25% of train data directory
+print('Model 2 directory with 25% data: ', MODEL_2_25_DIRECTORY)
+
+MODEL_2_50_DIRECTORY = os.path.join(MODEL_2_DIRECTORY,'50') # Model 2 trained using 50% of train data directory
+print('Model 2 directory with 50% data: ', MODEL_2_50_DIRECTORY)
+
+MODEL_2_75_DIRECTORY = os.path.join(MODEL_2_DIRECTORY,'75') # Model 2 trained using 75% of train data directory
+print('Model 2 directory with 75% data: ', MODEL_2_75_DIRECTORY)
+
+MODEL_2_100_DIRECTORY = os.path.join(MODEL_2_DIRECTORY,'100') # Model 2 trained using 100% of train data directory
+print('Model 2 directory with 100% data: ', MODEL_2_100_DIRECTORY)
+
+#Output Test
+model_2_25_output_test_file = os.path.join(MODEL_2_25_DIRECTORY, 'output_test.csv') # Output file using Model 2 trained using 25% of train data 
+print('Output file name using model 2 using 100% of train data: ',model_2_25_output_test_file)
+
+model_2_50_output_test_file = os.path.join(MODEL_2_50_DIRECTORY, 'output_test.csv') # Output file using Model 2 trained using 50% of train data 
+print('Output file name using model 2 using 100% of train data: ',model_2_50_output_test_file)
+
+model_2_75_output_test_file = os.path.join(MODEL_2_75_DIRECTORY, 'output_test.csv') # Output file using Model 2 trained using 50% of train data 
+print('Output file name using model 2 using 100% of train data: ',model_2_75_output_test_file)
+
+model_2_100_output_test_file = os.path.join(MODEL_2_100_DIRECTORY, 'output_test.csv') # Output file using Model 2 trained using 100% of train data 
+print('Output file name using model 2 using 100% of train data: ',model_2_100_output_test_file)
+
+"""Let's see train file"""
+
+train_data = pd.read_csv(train_file)
+train_data.head(50)
+
+"""#Dataset Statistics"""
+
+train_data.info
+
+# Check for duplicates in the dataframe
+duplicates = train_data.duplicated()
+
+# Print the number of duplicates
+print("Number of duplicates: ", duplicates.sum())
+
+# Print the duplicate rows
+print("Duplicate rows:\n", train_data[duplicates])
+
+print("Number of rows: ", train_data.shape[0])
+print("Number of columns: ", train_data.shape[1])
+
+label_counts = train_data['label'].value_counts()
+print("Label distribution:\n", label_counts)
+
+tweet_lengths = train_data['tweet'].apply(lambda x: len(x.split()))
+print("Minimum tweet length: ", tweet_lengths.min())
+print("Maximum tweet length: ", tweet_lengths.max())
+print("Average tweet length: ", tweet_lengths.mean())
+
+print("Missing values:\n", train_data.isna().sum())
+
+class_balance = label_counts / train_data.shape[0] * 100
+print("Class balance:\n", class_balance)
+
+"""#Compute and Display Performance Metrics and Confusion Matrix"""
+
+def compute_performance1(y_true, y_pred, split=None):
+    """
+    Prints different performance metrics like Accuracy, Recall (macro), Precision (macro), and F1 (macro).
+    Displays the Confusion Matrix with proper X & Y axis labels.
+    Also, returns the F1 score.
+
+    Args:
+        y_true: numpy array or list
+        y_pred: numpy array or list
+        split: string (optional)
+
+    Returns:
+        float
+    """
+    # Calculate metrics
+    accuracy = accuracy_score(y_true, y_pred)
+    recall = recall_score(y_true, y_pred, average='macro')
+    precision = precision_score(y_true, y_pred, average='macro')
+    f1 = f1_score(y_true, y_pred, average='macro')
+
+    # Print metrics
+    print(f"Accuracy: {accuracy:.4f}")
+    print(f"Recall (macro): {recall:.4f}")
+    print(f"Precision (macro): {precision:.4f}")
+    print(f"F1 (macro): {f1:.4f}")
+
+    # Plot confusion matrix
+    cm = confusion_matrix(y_true, y_pred)
+    print(cm)
+    plt.figure(figsize=(8, 6))
+    sns.heatmap(cm, annot=True, fmt='d', cmap='Blues', xticklabels=np.unique(y_true), yticklabels=np.unique(y_true))
+    plt.xlabel('Predicted')
+    plt.ylabel('True')
+    plt.title(f"Confusion Matrix - {split.capitalize() if split else 'Dataset'}")
+    plt.show()
+
+    return f1
+
+"""# Method 1 Start
+
+# Clean and Preprocess Tweet Text.
+This code defines a function called clean_tweet1, which preprocesses and cleans a given tweet text. The purpose of this function is to remove unnecessary information and reduce noise in the text, making it easier for further text processing. The function will perform the following tasks:
+
+*   Remove URLs and mentions: The function uses the re.sub() method from the re library (regular expressions) to replace any instance of 'URL' or '@USER' with an empty string, effectively removing them from the tweet.
+*   Remove special characters: The function uses re.sub() again to replace any non-alphabetic and non-whitespace characters with an empty string, keeping only letters and spaces.
+*   Convert to lowercase and tokenize: The function converts the entire tweet to lowercase using the lower() method, and then tokenizes the text using the word_tokenize() function from the nltk library. Tokenization breaks the text into a list of individual words (tokens).
+*   Remove stopwords and lemmatize tokens: The function iterates over the list of tokens, checks if each token is not a stopword (common words that don't provide much meaning, such as "the", "and", "in"), and then lemmatizes the token using the lemmatizer.lemmatize() method. Lemmatization reduces a word to its base or dictionary form (lemma), making it easier to analyze semantically similar words.
+*   Join the clean tokens: The function joins the clean, lemmatized tokens back into a single string, separating them with spaces.
+"""
+
+#Download required NLTK data
+nltk.download('stopwords')
+nltk.download('punkt')
+nltk.download('wordnet')
+
+# Initialize stopwords and lemmatizer
+stop_words = set(stopwords.words('english'))
+lemmatizer = WordNetLemmatizer()
+
+def clean_tweet1(tweet):
+    """
+    Clean and preprocess tweet text data.
+    
+    Args:
+        tweet (str): The tweet text to be cleaned.
+        
+    Returns:
+        str: The cleaned tweet text.
+    """
+    # Remove URLs and special characters
+    tweet = re.sub(r'(URL|@USER)', '', tweet)
+    tweet = re.sub(r'[^a-zA-Z\s]', '', tweet)
+
+    # Convert to lowercase and tokenize
+    tokens = word_tokenize(tweet.lower())
+
+    # Remove stopwords and lemmatize tokens
+    clean_tokens = [lemmatizer.lemmatize(token) for token in tokens if token not in stop_words]
+
+    return ' '.join(clean_tokens)
+
+"""#Prepare Text Data with TF-IDF Vectorization
+
+This code defines a function called prepare_dataset1, which processes a given dataset using the Term Frequency-Inverse Document Frequency (TF-IDF) technique. The purpose of this function is to convert raw text data into a numerical representation that can be used for machine learning models.
+
+Input:
+
+
+*   data: A pandas DataFrame containing the dataset, with a column named 'tweet' for the text data.
+*   tfidf_vectorizer: A pre-fitted TfidfVectorizer object from scikit-learn. This parameter is optional, and if not provided, a new vectorizer will be created for the 'train' split (default=None).
+*   split: A string that indicates if the dataset is for training or testing. It should be either 'train' or 'test' (default='test').
+
+Functionality:
+*   If the split parameter is 'train', the function creates a new TfidfVectorizer object, specifying English stop words and a maximum of 5,000 features. Then, it fits the vectorizer on the 'tweet' column of the dataset using the fit_transform() method, which calculates the TF-IDF values for each word in the text.
+*   If the split parameter is not 'train' (i.e., 'test'), the function uses the pre-fitted tfidf_vectorizer to transform the 'tweet' column of the dataset using the transform() method. This step applies the same TF-IDF transformation to the test data based on the parameters learned from the training data.
+
+Output:
+
+
+*   If the split parameter is 'train', the function returns a tuple containing the following elements:
+    *   'values': A sparse matrix of shape (n_samples, n_features), with the calculated TF-IDF values for each word in the dataset.
+    *   tfidf_vectorizer: The fitted TfidfVectorizer object.
+
+
+*   If the split parameter is not 'train' (i.e., 'test'), the function returns only values: A sparse matrix of shape (n_samples, n_features) with the calculated TF-IDF values for each word in the dataset, based on the transformation learned from the training data.
+"""
+
+def prepare_dataset1(data, tfidf_vectorizer=None, split='test'):
+    """
+    Prepare the input dataset for machine learning tasks, specifically for text classification.
+    
+    Args:
+        data (pandas.DataFrame): The input dataset containing the 'tweet' column to be processed.
+        tfidf_vectorizer (TfidfVectorizer, optional): The TfidfVectorizer object to be used for transforming the data.
+            If the data split is 'train', this argument is ignored as a new TfidfVectorizer will be created.
+        split (str, optional): The type of dataset split, either 'train' or 'test'. Default is 'test'.
+        
+    Returns:
+        If split == 'train':
+            scipy.sparse.csr_matrix: The transformed tweet values as a sparse matrix.
+            TfidfVectorizer: The TfidfVectorizer object used for transforming the data.
+        Else:
+            scipy.sparse.csr_matrix: The transformed tweet values as a sparse matrix.
+    """
+    if split == 'train':
+        tfidf_vectorizer = TfidfVectorizer(stop_words='english', max_features=5000)
+        values = tfidf_vectorizer.fit_transform(data['tweet'].values)
+    else:
+        values = tfidf_vectorizer.transform(data['tweet'].values)
+
+    if split == 'train':
+        return values, tfidf_vectorizer
+    else:
+        return values
+
+"""# Train and Tune SVM Classifier for Text Classification
+This code defines a function called train_model1, which trains a Support Vector Machine (SVM) classifier using a linear kernel and hyperparameter tuning.
+
+Input:
+*   text_values: A list or array-like structure containing the preprocessed text data.
+*   label: A list or array-like structure containing the corresponding labels for the text data.
+
+Functionality:
+*   The function creates a pipeline that first vectorizes the text using the Term Frequency-Inverse Document Frequency (TF-IDF) method and then trains an SVM classifier with a linear kernel.
+*   The param_grid dictionary specifies the range of hyperparameters (in this case, the regularization parameter 'C') to be tuned during the grid search.
+*   The GridSearchCV object is created with the pipeline, parameter grid, scoring metric (F1-weighted), and other parameters like cross-validation folds, verbosity, and the number of parallel jobs.
+*   The grid search is performed by fitting the GridSearchCV object to the input text data and labels.
+*   The best hyperparameters found during the grid search are printed, and the best pipeline is extracted.
+
+Output:
+
+
+*   best_pipeline: The pipeline with the best performing hyperparameters, which can be used for making predictions on new data.
+
+"""
+
+def train_model1(text_values, label):
+    """
+    Train a Support Vector Machine (SVM) model using hyperparameter tuning.
+    
+    Args:
+        text_values (iterable): The input text values (e.g., list or pandas.Series).
+        label (iterable): The corresponding labels for the input text values.
+        
+    Returns:
+        Pipeline: The best SVM model (pipeline) found during hyperparameter tuning.
+    """
+
+    print("Let's start training SVM (SVC) with hyperparameter tuning")
+    pipeline = Pipeline([
+        ('vectorizer', TfidfVectorizer(stop_words='english', max_features=5000)),
+        ('classifier', SVC(kernel='linear', random_state=42))
+    ])
+    
+    param_grid = {'classifier__C': [0.1, 1, 10, 100]}
+    grid_search = GridSearchCV(pipeline, param_grid, scoring='f1_weighted', cv=5, verbose=1, n_jobs=-1)
+    grid_search.fit(text_values, label)
+    
+    print("Best parameters found: ", grid_search.best_params_)
+    best_pipeline = grid_search.best_estimator_
+    
+    return best_pipeline
+
+"""#Save Model and Vectorizer to Disk
+This code defines a function called save_model1, which saves the trained model and its corresponding vectorizer to disk.
+
+Input:
+*   model: The trained machine learning model to be saved.
+vectorizer: The fitted vectorizer used for preprocessing the text data.
+*   model_dir: The directory where the model and vectorizer files will be saved.
+
+Functionality:
+
+
+*   The function constructs the file path for the model and vectorizer by joining the model_dir with their respective filenames ('model.sav' and 'vectorizer.sav').
+*   The model and vectorizer are saved to their respective files using Python's pickle.dump function.
+*   The paths of the saved model and vectorizer files are printed to the console.
+
+Output:
+
+
+*   model_file: The file path of the saved model.
+*   vectorizer_file: The file path of the saved vectorizer.
+
+
+
+"""
+
+def save_model1(model, vectorizer, model_dir):
+    # save the model to disk
+    model_file = os.path.join(model_dir, 'model.sav')
+    pickle.dump(model, open(model_file, 'wb'))
+
+    print('Saved model to ', model_file)
+
+    vectorizer_file = os.path.join(model_dir, 'vectorizer.sav') 
+    pickle.dump(vectorizer, open(vectorizer_file, 'wb'))
+
+    print('Saved Vectorizer to ', vectorizer_file)
+
+    return model_file, vectorizer_file
+#print('Saved Vectorizer to ', vectorizer_file)
+
+"""#Load Model and Vectorizer from Disk
+This code defines a function called load_model1 that loads a pre-trained machine learning model and its corresponding vectorizer from disk.
+
+Input:
+
+
+*   model_file: A string representing the file path of the saved model.
+*   vectorizer_file: A string representing the file path of the saved vectorizer.
+
+
+Functionality:
+
+
+*   The function uses the pickle module to load the model and vectorizer from their respective files.
+
+Output:
+
+*   model: The loaded machine learning model.
+*   vectorizer: The loaded vectorizer object.
+
+
+
+
+
+"""
+
+def load_model1(model_file, vectorizer_file):
+    # load model and vectorizer from disk
+
+    model = pickle.load(open(model_file, 'rb'))
+
+    print('Loaded model from ', model_file)
+
+    vectorizer = pickle.load(open(vectorizer_file, 'rb'))
+
+    print('Loaded Vectorizer from ', vectorizer_file)
+
+
+    return model, vectorizer
+
+"""## Training Method 1 Code
+
+This code defines a function called train_method1 that trains a machine learning model on the given training dataset and evaluates its performance on the validation dataset. It also saves the trained model and its corresponding vectorizer.
+
+Input:
+
+
+*   train_file: A string representing the file path of the training dataset.
+*   val_file: A string representing the file path of the validation dataset.
+*   model_dir: A string representing the directory where the trained model and vectorizer will be saved.
+
+Functionality:
+
+
+*   Read the training and validation data from the provided files and preprocess the tweets.
+
+*   Extract the labels and cleaned tweets from both datasets.
+
+*   Train the model using the train_model1 function with the training data.
+*   Save the trained model and vectorizer using the save_model1 function.
+
+
+*   Predict the labels for the training and validation datasets.
+
+
+*   Compute and print the performance metrics (F1 score, accuracy, etc.) for the training and validation datasets using the compute_performance1 function.
+
+
+Output:
+
+
+*   model_file: A string representing the file path of the saved model.
+*   vectorizer_file: A string representing the file path of the saved vectorizer.
+"""
+
+def train_method1(train_file, val_file, model_dir):
+    train_data = pd.read_csv(train_file)
+    train_data['cleaned_tweet'] = train_data['tweet'].apply(clean_tweet1)
+    
+    val_data = pd.read_csv(val_file)
+    val_data['cleaned_tweet'] = val_data['tweet'].apply(clean_tweet1)
+
+    train_label = train_data['label']
+    val_label = val_data['label']
+
+    train_values = train_data['cleaned_tweet']
+    val_values = val_data['cleaned_tweet']
+
+    model = train_model1(train_values, train_label)
+
+    model_file, vectorizer_file = save_model1(model.named_steps['classifier'], model.named_steps['vectorizer'], model_dir)
+
+    train_pred_label = model.predict(train_values)
+    val_pred_label = model.predict(val_values)
+
+    # print('Train Split')
+    train_f1_score = compute_performance1(train_label, train_pred_label, split='train')
+
+    # print('Validation Split')
+    val_f1_score = compute_performance1(val_label, val_pred_label, split='valid')
+
+    return model_file, vectorizer_file
+
+train_files = [train_25_data, train_50_data, train_75_data, train_100_data]
+
+model_directories= [MODEL_1_25_DIRECTORY, MODEL_1_50_DIRECTORY, MODEL_1_75_DIRECTORY, MODEL_1_100_DIRECTORY]
+subset_percentages = ['25%', '50%', '75%', '100%']
+
+# Loop through the variables and call the train_method1 function
+for train_file, output_dir, percentage in zip(train_files, model_directories, subset_percentages):
+    print(f"Training and saving model for {percentage} data in {output_dir}")
+    model_file, vectorizer_file = train_method1(train_file, val_file, output_dir)
+
+"""## Testing Method 1 Code
+
+This code defines a function called test_method1 that evaluates a pre-trained model on a test dataset and saves the model's predictions along with the input data in a CSV file.
+
+Inputs:
+
+
+*   test_file: The file path of the test dataset in CSV format.
+
+*   model_file: The file path of the saved pre-trained model.
+*   vectorizer_file: The file path of the saved pre-trained vectorizer.
+
+*   output_dir: The directory where the output file containing predictions will be saved.
+
+Functionality:
+*   The function reads the test dataset from the given file path and applies the clean_tweet1 function to clean the tweet text.
+
+*   It extracts the true labels from the test dataset.
+
+*   The pre-trained model and vectorizer are loaded from their respective file paths.
+
+*   The cleaned tweet texts are transformed using the loaded vectorizer.
+*   The transformed tweet texts are fed to the loaded model to obtain predictions
+
+
+*   The predictions are added to the test dataset as a new column named 'out_label'.
+
+
+*   The model's performance is evaluated on the test dataset using various metrics by calling the compute_performance1 function with 'test' as the split argument.
+
+
+*   The output file containing the test dataset with the predictions is saved in the specified output directory.
+
+Output:
+
+* Returns the file path of the output file containing the test dataset with the predictions.
+"""
+
+def test_method1(test_file, model_file, vectorizer_file, output_dir):
+
+    test_data = pd.read_csv(test_file)
+    test_data['cleaned_tweet'] = test_data['tweet'].apply(clean_tweet1)
+
+    test_label = test_data['label']
+
+    model, vectorizer = load_model1(model_file, vectorizer_file)
+
+    test_values = vectorizer.transform(test_data['cleaned_tweet'])
+
+    test_pred_label = model.predict(test_values)
+
+    test_data['out_label'] = test_pred_label 
+
+    test_f1_score = compute_performance1(test_label, test_pred_label, split='test')
+
+    out_file = os.path.join(output_dir, 'output_test.csv')
+
+    print('Saving model output to', out_file)
+    test_data.to_csv(out_file, index=False)
+
+    return output_file
+
+# Define the required variables
+model_files = [os.path.join(MODEL_1_25_DIRECTORY, 'model.sav'),
+               os.path.join(MODEL_1_50_DIRECTORY, 'model.sav'),
+               os.path.join(MODEL_1_75_DIRECTORY, 'model.sav'),
+               os.path.join(MODEL_1_100_DIRECTORY, 'model.sav')]
+
+vectorizer_files = [os.path.join(MODEL_1_25_DIRECTORY, 'vectorizer.sav'),
+                    os.path.join(MODEL_1_50_DIRECTORY, 'vectorizer.sav'),
+                    os.path.join(MODEL_1_75_DIRECTORY, 'vectorizer.sav'),
+                    os.path.join(MODEL_1_100_DIRECTORY, 'vectorizer.sav')]
+
+output_directories = [MODEL_1_25_DIRECTORY, MODEL_1_50_DIRECTORY, MODEL_1_75_DIRECTORY, MODEL_1_100_DIRECTORY]
+subset_percentages = ['25%', '50%', '75%', '100%']
+
+# Loop through the variables and call the test_method1 function
+for model_file, vectorizer_file, output_dir, percentage in zip(model_files, vectorizer_files, output_directories, subset_percentages):
+    print(f'Testing using model trained on {percentage} data')
+    test_method1(test_file, model_file, vectorizer_file, output_dir)
+
+"""#Performance on validation and test sets"""
+
+import matplotlib.pyplot as plt
+
+data_percentage = [25, 50, 75, 100]
+
+# Replace these values with the F1 scores for each percentage from your experiments
+validation_f1_scores = [0.6778, 0.6973, 0.6903, 0.7110]
+test_f1_scores = [0.6866, 0.7265, 0.7129, 0.7284]
+
+plt.plot(data_percentage, validation_f1_scores, marker='o', linestyle='-', label='Validation')
+plt.plot(data_percentage, test_f1_scores, marker='x', linestyle='--', label='Test')
+
+plt.xlabel('Percentage of Training Data')
+plt.ylabel('F1 Score')
+plt.title('Performance on Validation and Test Sets (SVM)')
+plt.legend()
+
+plt.savefig('performance_plot.png')
+plt.show()
+
+"""# Method 2 Start
+
+Installing Required Libraries
+"""
+
+!pip install --upgrade tensorflow
+!pip install keras
+
+# set same seeds for all libraries
+
+#numpy seed
+np.random.seed(student_id)
+
+"""Loading Required Libraries for Model 2"""
+
+import os
+import pickle
+import io
+import numpy as np
+import pandas as pd
+import re
+import csv
+from tensorflow.keras.layers import Dropout
+from tensorflow.keras.callbacks import EarlyStopping
+from keras.callbacks import EarlyStopping
+from keras.layers import Dropout
+import tensorflow as tf
+from sklearn.preprocessing import LabelEncoder
+from sklearn.utils import class_weight
+from tensorflow import keras
+from keras.models import Sequential
+from keras.layers import Embedding, LSTM, Dense    
+from keras.preprocessing.text import Tokenizer
+from keras.layers import Embedding, LSTM, Dense
+from tensorflow.keras.optimizers import Adam
+from tensorflow.keras.layers import Conv1D, MaxPooling1D
+from keras.layers import Embedding, LSTM, Dense, Dropout, GlobalMaxPooling1D
+from tensorflow.keras.preprocessing.text import Tokenizer
+from tensorflow.keras.preprocessing.sequence import pad_sequences
+from tensorflow.keras.models import Sequential
+from tensorflow.keras.layers import Embedding, LSTM, Dense, Dropout, GlobalMaxPooling1D
+from sklearn.preprocessing import LabelEncoder
+from sklearn.metrics import confusion_matrix, f1_score
+from sklearn.metrics import accuracy_score, recall_score, precision_score, f1_score, confusion_matrix
+from sklearn.model_selection import train_test_split
+import pickle  # Added import for pickle
+import matplotlib.pyplot as plt  # Added import for matplotlin
+
+""" Train Subsets """
+
+def create_train_subsets(train_file):
+    data = pd.read_csv(train_file)
+    target_column = 'label' # Replace with the correct target column name
+
+    train_data_100 = data
+    train_data_75, _ = train_test_split(data, train_size=0.75, random_state=42, stratify=data['label'])
+    train_data_50, _ = train_test_split(train_data_75, train_size=(2/3), random_state=42, stratify=train_data_75['label'])
+    train_data_25, _ = train_test_split(train_data_50, train_size=0.5, random_state=42, stratify=train_data_50['label'])
+
+    return train_data_100, train_data_75, train_data_50, train_data_25
+
+
+student_id = 2200970  
+GOOGLE_DRIVE_PATH_AFTER_MYDRIVE = os.path.join('./CE807/Assignment2/', str(student_id))
+GOOGLE_DRIVE_PATH = os.path.join('gdrive', 'MyDrive', GOOGLE_DRIVE_PATH_AFTER_MYDRIVE)
+train_file = os.path.join(GOOGLE_DRIVE_PATH, 'train.csv')  
+
+train_25_data = os.path.join(GOOGLE_DRIVE_PATH, 'train_25.csv')
+train_50_data = os.path.join(GOOGLE_DRIVE_PATH, 'train_50.csv')
+train_75_data = os.path.join(GOOGLE_DRIVE_PATH, 'train_75.csv')
+train_100_data = os.path.join(GOOGLE_DRIVE_PATH, 'train.csv')
+
+train_data_100, train_data_75, train_data_50, train_data_25 = create_train_subsets(train_file)
+
+train_25_data = os.path.join(GOOGLE_DRIVE_PATH, 'train_25.csv')
+train_50_data = os.path.join(GOOGLE_DRIVE_PATH, 'train_50.csv')
+train_75_data = os.path.join(GOOGLE_DRIVE_PATH, 'train_75.csv')
+train_100_data = os.path.join(GOOGLE_DRIVE_PATH, 'train.csv')
+
+train_data_25.to_csv(train_25_data, index=False)
+train_data_50.to_csv(train_50_data, index=False)
+train_data_75.to_csv(train_75_data, index=False)
+train_data_100.to_csv(train_100_data, index=False)
+
+print('Train 25% file: ', train_25_data)
+print('Train 50% file: ', train_50_data)
+print('Train 75% file: ', train_75_data)
+print('Train 100% file: ', train_file)
+
+val_file = os.path.join(GOOGLE_DRIVE_PATH, 'valid.csv')
+print('Val file: ', val_file)
+
+test_file = os.path.join(GOOGLE_DRIVE_PATH, 'test.csv')
+print('Test file: ', test_file)
+
+print('List files: ', os.listdir(GOOGLE_DRIVE_PATH))
+
+"""Model 2 Directories and Output Files"""
+
+MODEL_2_DIRECTORY = os.path.join(GOOGLE_DRIVE_PATH, 'models', '2') # Model 2 directory
+print('Model 2 directory: ', MODEL_2_DIRECTORY)
+
+MODEL_2_25_DIRECTORY = os.path.join(MODEL_2_DIRECTORY,'25') # Model 2 trained using 25% of train data directory
+print('Model 2 directory with 25% data: ', MODEL_2_25_DIRECTORY)
+
+MODEL_2_50_DIRECTORY = os.path.join(MODEL_2_DIRECTORY,'50') # Model 2 trained using 50% of train data directory
+print('Model 2 directory with 50% data: ', MODEL_2_50_DIRECTORY)
+
+MODEL_2_75_DIRECTORY = os.path.join(MODEL_2_DIRECTORY,'75') # Model 2 trained using 75% of train data directory
+print('Model 2 directory with 75% data: ', MODEL_2_75_DIRECTORY)
+
+MODEL_2_100_DIRECTORY = os.path.join(MODEL_2_DIRECTORY,'100') # Model 2 trained using 100% of train data directory
+print('Model 2 directory with 100% data: ', MODEL_2_100_DIRECTORY)
+
+#Output Test
+model_2_25_output_test_file = os.path.join(MODEL_2_25_DIRECTORY, 'output_test.csv') # Output file using Model 2 trained using 25% of train data 
+print('Output file name using model 2 using 100% of train data: ',model_2_25_output_test_file)
+
+model_2_50_output_test_file = os.path.join(MODEL_2_50_DIRECTORY, 'output_test.csv') # Output file using Model 2 trained using 50% of train data 
+print('Output file name using model 2 using 100% of train data: ',model_2_50_output_test_file)
+
+model_2_75_output_test_file = os.path.join(MODEL_2_75_DIRECTORY, 'output_test.csv') # Output file using Model 2 trained using 50% of train data 
+print('Output file name using model 2 using 100% of train data: ',model_2_75_output_test_file)
+
+model_2_100_output_test_file = os.path.join(MODEL_2_100_DIRECTORY, 'output_test.csv') # Output file using Model 2 trained using 100% of train data 
+print('Output file name using model 2 using 100% of train data: ',model_2_100_output_test_file)
+
+"""#Clean Tweet Method 2
+
+This code cell defines the clean_tweet2 function, which is used for cleaning tweets in the dataset. It removes specific patterns and characters (e.g., '@USER', non-word characters, digits) and converts the tweet to lowercase. This function is applied to the tweets to preprocess them before tokenization and padding.
+"""
+
+def clean_tweet2(tweet):
+    """
+    Clean a tweet by removing specific patterns and characters, and converting to lowercase.
+    
+    Args:
+        tweet (str): The tweet text to be cleaned.
+    
+    Returns:
+        str: The cleaned tweet text.
+    """
+    tweet = re.sub('@USER', '', tweet)
+    tweet = re.sub('\s+', ' ', tweet)
+    tweet = re.sub('\W', ' ', tweet)
+    tweet = re.sub('\d+', '', tweet)
+    tweet = tweet.lower().strip()
+
+    return tweet
+
+"""#Text Dataset Preparation
+
+This code cell defines the prepare_dataset2 function, which is used for preparing the dataset for the text classification model. It reads a dataset file, cleans the tweets, tokenizes them using the provided tokenizer, and pads the sequences. If the dataset is a training dataset, it also fits the tokenizer on the cleaned tweets and encodes the labels using the LabelEncoder class.
+"""
+
+def prepare_dataset2(file, tokenizer, train=True, maxlen=None):
+    """
+    Prepare the dataset for the text classification model.
+    
+    Args:
+        file (str): Path to the dataset CSV file.
+        tokenizer (Tokenizer): The tokenizer to be used for tokenizing the tweets.
+        train (bool, optional): Whether the dataset is a training dataset. Default is True.
+        maxlen (int, optional): Maximum length of input sequences (number of tokens). Default is None.
+    
+    Returns:
+        padded_sequences (np.array): The padded sequences as a NumPy array.
+        labels (np.array or pd.Series): The encoded labels if train=True, or the original labels if train=False.
+        tokenizer (Tokenizer): The tokenizer after fitting on the tweets if train=True, or the original tokenizer if train=False.
+    """
+    data = pd.read_csv(file, delimiter=',')
+    tweets = data['tweet'].apply(clean_tweet2).tolist()
+
+    if train:
+        tokenizer = Tokenizer()
+        tokenizer.fit_on_texts(tweets)
+
+    sequences = tokenizer.texts_to_sequences(tweets)
+    padded_sequences = pad_sequences(sequences, maxlen=maxlen, padding='post', truncating='post')
+    
+    if train:
+        label_encoder = LabelEncoder()
+        labels = label_encoder.fit_transform(data['label'])  
+    else:
+        labels = data['label']
+
+    return padded_sequences, labels, tokenizer
+
+"""#Label Preprocessing
+
+This code cell defines the preprocess_labels function, which is used for encoding the categorical labels of the dataset using the LabelEncoder class. It then loads the training and validation datasets, extracts the labels, and preprocesses them using the preprocess_labels function.
+
+"""
+
+def preprocess_labels(labels):
+    """
+    Preprocess categorical labels using LabelEncoder.
+    
+    Args:
+        labels (pd.Series): The categorical labels to be encoded.
+    
+    Returns:
+        encoded_labels (np.array): The encoded labels as a NumPy array.
+        label_encoder (LabelEncoder): The LabelEncoder instance used for encoding the labels.
+    """
+    label_encoder = LabelEncoder()
+    encoded_labels = label_encoder.fit_transform(labels)
+    return encoded_labels, label_encoder
+
+# Load the datasets
+train_data = pd.read_csv(train_file)
+val_data = pd.read_csv(val_file)
+
+# Extract the labels from the datasets
+train_labels = train_data['label']
+val_labels = val_data['label']
+
+# Preprocess the labels
+train_labels, train_label_encoder = preprocess_labels(train_labels)
+val_labels, val_label_encoder = preprocess_labels(val_labels)
+
+"""#Training Model
+
+This code cell defines a function train_model2 that trains a text classification model using the provided training and validation data. The function builds a simple Convolutional Neural Network (CNN) model using Keras, compiles it with the Adam optimizer, and trains it on the input data.
+"""
+
+def train_model2(input_length, train_data, train_labels, val_data, val_labels, random_seed=2200970):
+    """
+    Train a text classification model using the provided training and validation data.
+    
+    Args:
+        input_length (int): Length of input sequences (number of tokens).
+        train_data (numpy.array): Array of tokenized and padded training data.
+        train_labels (numpy.array): Array of training labels.
+        val_data (numpy.array): Array of tokenized and padded validation data.
+        val_labels (numpy.array): Array of validation labels.
+        random_seed (int, optional): Random seed for reproducibility. Defaults to 2200970.
+    
+    Returns:
+        model (tf.keras.Model): The trained TensorFlow Keras model.
+        history (History): A Keras History object containing training and validation loss and accuracy information.
+    """
+    # Set the random seed for reproducibility
+    np.random.seed(random_seed)
+    tf.random.set_seed(random_seed)
+
+    # Define the model architecture
+    model = Sequential()
+    model.add(Embedding(20000, 128, input_length=input_length))
+    model.add(Conv1D(128, 5, activation='relu'))
+    model.add(MaxPooling1D(5))
+    model.add(Conv1D(128, 5, activation='relu'))
+    model.add(MaxPooling1D(5))
+    model.add(GlobalMaxPooling1D())
+    model.add(Dense(128, activation='relu'))
+    model.add(Dense(3, activation='softmax'))
+
+    # Compile the model with the Adam optimizer and its default learning rate
+    model.compile(loss="sparse_categorical_crossentropy", optimizer=Adam(), metrics=["accuracy"])
+
+    # Train the model
+    history = model.fit(train_data, train_labels, epochs=3, validation_data=(val_data, val_labels))
+
+    return model, history
+
+"""#Save Model, Tokenizer, and Label Encoder
+
+This code cell defines a function save_model2 that saves a trained model, tokenizer, and label encoder to their respective files. The function is used to store these objects for later use in tasks such as evaluation and prediction.
+"""
+
+def save_model2(model, tokenizer, label_encoder, model_dir):
+    """
+    Save a trained model, tokenizer, and label encoder to their respective files.
+    
+    Args:
+        model (tf.keras.Model): The trained TensorFlow Keras model.
+        tokenizer (Tokenizer): The tokenizer object used for pre-processing input text.
+        label_encoder (LabelEncoder): The label encoder object used for encoding and decoding class labels.
+        model_dir (str): Directory path where the files will be saved.
+    
+    Returns:
+        model_file (str): Path to the saved model file (in .h5 format).
+        tokenizer_file (str): Path to the saved tokenizer file (in .pickle format).
+        label_encoder_file (str): Path to the saved label encoder file (in .pickle format).
+    """
+    model_file = os.path.join(model_dir, 'model.h5')
+    model.save(model_file)  # Changed from pickle.dump to model.save
+    print('Saved model to ', model_file)
+
+    tokenizer_file = os.path.join(model_dir, 'tokenizer.pkl')
+    with open(tokenizer_file, 'wb') as f:  # Changed from pickle.dump to with open
+        pickle.dump(tokenizer, f)
+    print('Saved tokenizer to ', tokenizer_file)
+
+    label_encoder_file = os.path.join(model_dir, 'label_encoder.pkl')
+    with open(label_encoder_file, 'wb') as f:  # Changed from pickle.dump to with open
+        pickle.dump(label_encoder, f)
+    print('Saved label_encoder to ', label_encoder_file)
+
+    return model_file, tokenizer_file, label_encoder_file
+
+"""#Load Pre-trained Model, Tokenizer, and Label Encoder
+
+This code cell defines a function load_model2 that loads a pre-trained model, tokenizer, and label encoder from their respective files. The function is used to restore these objects for further use in tasks such as evaluation and prediction.
+"""
+
+def load_model2(model_file, tokenizer_file, label_encoder_file):
+    """
+    Load a pre-trained model, tokenizer, and label encoder from their respective files.
+    
+    Args:
+        model_file (str): Path to the pre-trained model file (in .h5 format).
+        tokenizer_file (str): Path to the tokenizer file (in .pickle format).
+        label_encoder_file (str): Path to the label encoder file (in .pickle format).
+    
+    Returns:
+        model (tf.keras.Model): The pre-trained TensorFlow Keras model.
+        tokenizer (Tokenizer): The tokenizer object used for pre-processing input text.
+        label_encoder (LabelEncoder): The label encoder object used for encoding and decoding class labels.
+    """
+    # Load the model from the file
+    model = tf.keras.models.load_model(model_file)
+    print('Loaded model from', model_file)
+
+    # Load the tokenizer from the file
+    with open(tokenizer_file, 'rb') as f:
+        tokenizer = pickle.load(f)
+    print('Loaded tokenizer from', tokenizer_file)
+
+    # Load the label_encoder from the file
+    with open(label_encoder_file, 'rb') as f:
+        label_encoder = pickle.load(f)
+    print('Loaded label_encoder from', label_encoder_file)
+
+    return model, tokenizer, label_encoder
+
+"""# Main Training Method2
+
+This code cell defines the train_method2 function, which is the main training method for the text classification model. It reads the training and validation data from CSV files, preprocesses the text and labels, trains a model using the train_model2 function, computes the F1 score and confusion matrix for both training and validation sets, plots the training history, and saves the model, tokenizer, and label encoder to files.
+
+"""
+
+def train_method2(train_file, val_file, output_dir, input_length=200):
+    """
+    Main training method for the text classification model.
+    
+    Args:
+        train_file (str): Path to the training data CSV file.
+        val_file (str): Path to the validation data CSV file.
+        output_dir (str): Directory path where the trained model, tokenizer, and label encoder files will be saved.
+        input_length (int, optional): Length of input sequences (number of tokens). Defaults to 200.
+    
+    Returns:
+        model_file (str): Path to the saved model file (in .h5 format).
+        tokenizer_file (str): Path to the saved tokenizer file (in .pickle format).
+        label_encoder_file (str): Path to the saved label encoder file ( in .pickle format).
+    """
+    # Load data from CSV files
+    train_data = pd.read_csv(train_file)
+    val_data = pd.read_csv(val_file)
+    
+    # Extract texts and labels
+    train_texts = train_data['tweet']
+    val_texts = val_data['tweet']
+    train_labels = train_data['label']
+    val_labels = val_data['label']
+    
+    # Preprocess the labels
+    train_labels, train_label_encoder = preprocess_labels(train_labels)
+    val_labels, val_label_encoder = preprocess_labels(val_labels)
+    
+    # Tokenize the texts
+    tokenizer = Tokenizer(num_words=20000, oov_token="<OOV>")
+    tokenizer.fit_on_texts(train_texts)
+    train_sequences = tokenizer.texts_to_sequences(train_texts)
+    val_sequences = tokenizer.texts_to_sequences(val_texts)
+    
+    # Pad the sequences
+    train_sequences = pad_sequences(train_sequences, maxlen=input_length, padding="post", truncating="post")
+    val_sequences = pad_sequences(val_sequences, maxlen=input_length, padding="post", truncating="post")
+
+    # Train the model
+    model, history = train_model2(input_length, train_sequences, train_labels, val_sequences, val_labels)
+    
+    # Compute F1 score and confusion matrix for training split
+    train_preds = model.predict(train_sequences)
+    train_preds = np.argmax(train_preds, axis=1)
+    train_f1 = f1_score(train_labels, train_preds, average='macro')
+    train_cm = confusion_matrix(train_labels, train_preds)
+    print("Training F1 score:", train_f1)
+    print("Training confusion matrix:")
+    print(train_cm)
+    
+    # Compute F1 score and confusion matrix for validation split
+    val_preds = model.predict(val_sequences)
+    val_preds = np.argmax(val_preds, axis=1)
+    val_f1 = f1_score(val_labels, val_preds, average='macro')
+    val_cm = confusion_matrix(val_labels, val_preds)
+    print("Validation F1 score:", val_f1)
+    print("Validation confusion matrix:")
+    print(val_cm)
+
+    # Plot training history
+    plt.figure(figsize=(12, 6))
+    plt.plot(history.history['loss'], label='Training Loss')
+    plt.plot(history.history['val_loss'], label='Validation Loss')
+    plt.plot(history.history['accuracy'], label='Training Accuracy')
+    plt.plot(history.history['val_accuracy'], label='Validation Accuracy')
+    plt.xlabel('Epoch')
+    plt.legend()
+    plt.show()
+
+    # Save model, tokenizer, and label_encoder
+    model_file = os.path.join(output_dir, "model.h5")
+    tokenizer_file = os.path.join(output_dir, "tokenizer.pkl")
+    label_encoder_file = os.path.join(output_dir, "label_encoder.pkl")
+
+    model.save(model_file)
+    with open(tokenizer_file, "wb") as f:
+        pickle.dump(tokenizer, f)
+    with open(label_encoder_file, "wb") as f:
+        pickle.dump(train_label_encoder, f)
+
+    return model_file, tokenizer_file, label_encoder_file
+
+# Create directories if they don't exist
+for directory in [MODEL_2_25_DIRECTORY, MODEL_2_50_DIRECTORY, MODEL_2_75_DIRECTORY, MODEL_2_100_DIRECTORY]:
+    if not os.path.exists(directory):
+        os.makedirs(directory)
+
+train_files = [train_25_data, train_50_data, train_75_data, train_100_data]
+model_directories = [MODEL_2_25_DIRECTORY, MODEL_2_50_DIRECTORY, MODEL_2_75_DIRECTORY, MODEL_2_100_DIRECTORY]
+subset_percentages = ['25%', '50%', '75%', '100%']
+
+for train_file, output_dir, percentage in zip(train_files, model_directories, subset_percentages):
+    print(f"Training and saving model for {percentage} data in {output_dir}")
+    model_file, tokenizer_file, label_encoder_file = train_method2(train_file, val_file, output_dir)
+
+"""## Testing Method 2
+
+This code cell defines the test_method2 function, which is used for testing and evaluating the text classification model. It loads the trained model, tokenizer, and label encoder from the provided files, prepares the test dataset, predicts the labels for the test data, computes the F1 score and confusion matrix, and saves the test results to a CSV file.
+
+
+
+"""
+
+def test_method2(test_file, model_file, tokenizer_file, label_encoder_file, output_dir, maxlen):
+    """
+    Testing and evaluation method for the text classification model.
+    
+    Args:
+        test_file (str): Path to the test data CSV file.
+        model_file (str): Path to the trained model file ( in .h5 format).
+        tokenizer_file (str): Path to the tokenizer file (in .pickle format).
+        label_encoder_file (str): Path to the label encoder file (in .pickle format).
+        output_dir (str): Directory path where the test output file will be saved.
+        maxlen (int): Maximum length of input sequences (number of tokens).
+    
+    Returns:
+        output_file (str): Path to the saved test output CSV file.
+    """
+    # Load tokenizer and label encoder
+    with open(tokenizer_file, 'rb') as handle:
+        tokenizer = pickle.load(handle)
+    
+    with open(label_encoder_file, 'rb') as handle:
+        label_encoder = pickle.load(handle)
+
+    # Prepare test dataset
+    test_data, test_label, _ = prepare_dataset2(test_file, tokenizer, train=False, maxlen=maxlen)
+    model, tokenizer, label_encoder = load_model2(model_file, tokenizer_file, label_encoder_file)
+
+    # Predict and evaluate the model
+    y_pred = model.predict(test_data)
+    y_pred_labels = np.argmax(y_pred, axis=1)
+   
+    y_true_labels = label_encoder.transform(test_label)
+
+    # Compute performance metrics
+    f1 = f1_score(y_true_labels, y_pred_labels, average='macro')
+    cm = confusion_matrix(y_true_labels, y_pred_labels)
+    print("Test F1 score:", f1)
+    print("Test confusion matrix:")
+    print(cm)
+
+    # Save the output file
+    output_file = os.path.join(output_dir, "output_test.csv")
+    test_df = pd.read_csv(test_file, delimiter=',', dtype=str)  # Read test_file as DataFrame
+    with open(output_file, "w", encoding="utf-8") as f:
+        writer = csv.writer(f)
+        writer.writerow(["id", "tweet", "label", "out_label"])
+        for i, (id, tweet, true_label, pred_label) in enumerate(zip(test_df["id"], test_df["tweet"], y_true_labels, y_pred_labels)):
+            writer.writerow([id, tweet, label_encoder.inverse_transform([true_label])[0], label_encoder.inverse_transform([pred_label])[0]])
+
+    return output_file
+
+# Define the required variables
+
+model_files = [os.path.join(MODEL_2_25_DIRECTORY, 'model.h5'),
+               os.path.join(MODEL_2_50_DIRECTORY, 'model.h5'),
+               os.path.join(MODEL_2_75_DIRECTORY, 'model.h5'),
+               os.path.join(MODEL_2_100_DIRECTORY, 'model.h5')]
+
+tokenizer_files = [os.path.join(MODEL_2_25_DIRECTORY, 'tokenizer.pkl'),
+                    os.path.join(MODEL_2_50_DIRECTORY, 'tokenizer.pkl'),
+                    os.path.join(MODEL_2_75_DIRECTORY, 'tokenizer.pkl'),
+                    os.path.join(MODEL_2_100_DIRECTORY, 'tokenizer.pkl')]
+
+label_encoder_files = [os.path.join(MODEL_2_25_DIRECTORY, 'label_encoder.pkl'),
+                    os.path.join(MODEL_2_50_DIRECTORY, 'label_encoder.pkl'),
+                    os.path.join(MODEL_2_75_DIRECTORY, 'label_encoder.pkl'),
+                    os.path.join(MODEL_2_100_DIRECTORY, 'label_encoder.pkl')]
+                   
+
+output_directories = [MODEL_2_25_DIRECTORY, MODEL_2_50_DIRECTORY, MODEL_2_75_DIRECTORY, MODEL_2_100_DIRECTORY]
+subset_percentages = ['25%', '50%', '75%', '100%']
+
+train_files = [train_25_data, train_50_data, train_75_data, train_100_data]
+model_directories = [MODEL_2_25_DIRECTORY, MODEL_2_50_DIRECTORY, MODEL_2_75_DIRECTORY, MODEL_2_100_DIRECTORY]
+subset_percentages = ['25%', '50%', '75%', '100%']
+
+input_length = 200  # Set this to the desired value
+
+for model_file, tokenizer_file, label_encoder_file, output_dir, percentage in zip(model_files, tokenizer_files, label_encoder_files, model_directories, subset_percentages):
+    print(f'Testing using model trained on {percentage} data')
+    output_file = test_method2(test_file, model_file, tokenizer_file, label_encoder_file, output_dir, input_length)
+
+import matplotlib.pyplot as plt
+
+data_percentage = [25, 50, 75, 100]
+
+validation_f1_scores = [0.6632, 0.6790, 0.6919, 0.6756]
+test_f1_scores = [0.6626, 0.6627, 0.7343, 0.7010]
+
+plt.plot(data_percentage, validation_f1_scores, marker='o', linestyle='-', label='Validation')
+plt.plot(data_percentage, test_f1_scores, marker='x', linestyle='--', label='Test')
+
+plt.xlabel('Percentage of Training Data')
+plt.ylabel('F1 Score')
+plt.title('Performance on Validation and Test Sets (CNN)')
+plt.legend()
+
+plt.savefig('performance_plot.png')
+plt.show()
+
+"""## Method 2 End
+
+# Other Method/model Start
+
+##Other Method/model End
+"""
